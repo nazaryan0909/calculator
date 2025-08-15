@@ -3,54 +3,73 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>QuickChat – 1 Page (PIN Locked)</title>
+<title>QuickChat – PIN, Delete, Theme</title>
 <style>
-  :root { --bg:#0b0f14; --panel:#121821; --muted:#93a1b1; --text:#e6edf3; --brand:#5da0ff; }
+  :root {
+    /* DARK (default) */
+    --bg:#0b0f14; --panel:#121821; --muted:#93a1b1; --text:#e6edf3; --brand:#5da0ff; --border:#1e2633; --bubble:#0f1826; --bubbleMe:#0e203a; --bubbleMeBorder:#234a96;
+  }
+  [data-theme="light"]{
+    --bg:#f7f9fc; --panel:#ffffff; --muted:#5d6b7a; --text:#0b1625; --brand:#2b6cff; --border:#dde5ee; --bubble:#f1f5fb; --bubbleMe:#e8f0ff; --bubbleMeBorder:#bcd0ff;
+  }
   *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font:16px/1.4 system-ui,Segoe UI,Arial}
-  header{padding:18px 16px;background:linear-gradient(180deg,#0e1420,#0b0f14)}
+  header{padding:12px;background:linear-gradient(180deg,rgba(14,20,32,.7),transparent)}
+  .row{max-width:940px;margin:0 auto;display:flex;gap:8px;align-items:center;padding:0 12px}
   h1{margin:0;font-size:18px;font-weight:700;letter-spacing:.2px}
-  main{max-width:860px;margin:0 auto;padding:14px}
-  #card{border:1px solid #1e2633;background:var(--panel);border-radius:14px;overflow:hidden}
-  #top{display:flex;gap:8px;align-items:center;padding:12px 12px 10px;border-bottom:1px solid #1e2633;flex-wrap:wrap}
-  #room,#name{padding:10px;border-radius:10px;border:1px solid #273143;background:#0e1520;color:var(--text);min-width:160px}
-  #share{padding:10px 12px;border-radius:10px;border:1px solid #273143;background:#0e1520;color:var(--text);cursor:pointer}
+  #themeBtn{margin-left:auto;padding:8px 12px;border-radius:10px;border:1px solid var(--border);background:var(--panel);color:var(--text);cursor:pointer}
+  main{max-width:940px;margin:0 auto;padding:14px}
+  #card{border:1px solid var(--border);background:var(--panel);border-radius:14px;overflow:hidden}
+  #top{display:flex;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+  #room,#name{padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);min-width:160px}
+  #share{padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);cursor:pointer}
   #msgs{height:62vh;min-height:360px;overflow:auto;padding:12px;scroll-behavior:smooth}
-  .msg{margin:8px 0;max-width:80%}
-  .me{margin-left:auto;text-align:right}
-  .bubble{display:inline-block;padding:10px 12px;border-radius:12px;border:1px solid #223047;background:#0f1826}
-  .bubble.me{background:#0e203a;border-color:#234a96}
+  .msg{margin:8px 0;max-width:86%;display:flex;gap:8px}
+  .me{margin-left:auto;justify-content:flex-end}
+  .bubble{display:inline-block;padding:10px 12px;border-radius:12px;border:1px solid var(--border);background:var(--bubble)}
+  .bubble.me{background:var(--bubbleMe);border-color:var(--bubbleMeBorder)}
   .meta{font-size:12px;color:var(--muted);margin-top:4px}
-  form{display:flex;gap:8px;padding:12px;border-top:1px solid #1e2633;background:#0f1520}
-  input[type=text],input[type=password]{flex:1;padding:12px 12px;border-radius:12px;border:1px solid #273143;background:#0b1220;color:var(--text)}
-  button{padding:12px 16px;border-radius:12px;border:1px solid #2b3c6a;background:var(--brand);color:#071223;font-weight:700;cursor:pointer}
-  #link{font-family:ui-monospace,Consolas,monospace;color:#b8c7ff;user-select:all}
-  .pill{display:inline-flex;gap:6px;align-items:center;font-size:12px;color:#b0bdd0;background:#0d1424;border:1px solid #23304d;border-radius:999px;padding:6px 10px}
+  .col{display:flex;flex-direction:column}
+  .actions{display:flex;gap:6px;align-items:center}
+  .btn-icon{border:1px solid var(--border);background:transparent;color:var(--muted);border-radius:8px;padding:4px 8px;cursor:pointer}
+  .btn-icon:hover{color:var(--text)}
+  form{display:flex;gap:8px;padding:12px;border-top:1px solid var(--border);background:var(--bg)}
+  input[type=text],input[type=password]{flex:1;padding:12px 12px;border-radius:12px;border:1px solid var(--border);background:var(--bg);color:var(--text)}
+  button{padding:12px 16px;border-radius:12px;border:1px solid var(--border);background:var(--brand);color:#071223;font-weight:700;cursor:pointer}
+  #link{font-family:ui-monospace,Consolas,monospace;color:var(--brand);user-select:all}
+  .pill{display:inline-flex;gap:6px;align-items:center;font-size:12px;color:var(--muted);background:var(--bg);border:1px solid var(--border);border-radius:999px;padding:6px 10px}
   .spacer{flex:1}
   @media (max-width:560px){ #msgs{height:58vh} }
 
   /* PIN overlay */
   #pinOverlay{
-    position:fixed;inset:0;background:#0b0f14;display:flex;flex-direction:column;
+    position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;
     align-items:center;justify-content:center;gap:12px;z-index:9999
   }
-  #pinBox{display:flex;flex-direction:column;align-items:center;gap:10px}
-  #pinInput{font-size:2rem;padding:10px;width:140px;text-align:center;border:1px solid #273143;border-radius:10px;background:#0b1220;color:var(--text);letter-spacing:0.3em}
+  #pinBox{display:flex;flex-direction:column;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--border);padding:18px;border-radius:12px}
+  #pinInput{font-size:2rem;padding:10px;width:180px;text-align:center;border:1px solid var(--border);border-radius:10px;background:var(--bg);color:var(--text);letter-spacing:0.3em}
   #pinErr{height:1em;color:#ff6b6b}
-  #lockHint{font-size:12px;color:#8aa0b6}
+  #lockHint{font-size:12px;color:var(--muted)}
 </style>
 </head>
 <body>
+  <!-- PIN gate -->
   <div id="pinOverlay" aria-modal="true" role="dialog">
     <div id="pinBox">
-      <h2 style="margin:0">Enter 4-digit PIN</h2>
-      <input id="pinInput" type="password" inputmode="numeric" maxlength="4" autocomplete="one-time-code" />
+      <h2 style="margin:0">Enter 6-digit PIN</h2>
+      <input id="pinInput" type="password" inputmode="numeric" maxlength="6" autocomplete="one-time-code" />
       <button id="pinBtn">Unlock</button>
       <div id="pinErr"></div>
       <div id="lockHint">Auto-locks after 1 minute of inactivity</div>
     </div>
   </div>
 
-  <header><main><h1>QuickChat</h1></main></header>
+  <header>
+    <div class="row">
+      <h1>QuickChat</h1>
+      <button id="themeBtn" aria-pressed="false">🌙 Dark</button>
+    </div>
+  </header>
+
   <main aria-hidden="true" id="app">
     <div id="card">
       <div id="top">
@@ -76,10 +95,28 @@
 
   <script type="module">
     // =========================
+    //  THEME TOGGLE (light/dark)
+    // =========================
+    const themeBtn = document.getElementById("themeBtn");
+    const savedTheme = localStorage.qc_theme || "dark";
+    document.documentElement.setAttribute("data-theme", savedTheme);
+    updateThemeButton(savedTheme);
+    themeBtn.addEventListener("click", ()=>{
+      const next = (document.documentElement.getAttribute("data-theme")==="dark")?"light":"dark";
+      document.documentElement.setAttribute("data-theme", next);
+      localStorage.qc_theme = next;
+      updateThemeButton(next);
+    });
+    function updateThemeButton(mode){
+      themeBtn.textContent = (mode==="dark")?"🌙 Dark":"☀️ Light";
+      themeBtn.setAttribute("aria-pressed", mode==="dark" ? "true":"false");
+    }
+
+    // =========================
     //  PIN + AUTO-LOCK SETTINGS
     // =========================
-    const CHAT_PIN = "1234";          // <<< change this to your 4-digit PIN
-    const AUTOLOCK_MS = 60_000;       // 1 minute inactivity
+    const CHAT_PIN = "505051";       // your 6-digit PIN
+    const AUTOLOCK_MS = 60_000;      // 1 minute
 
     const pinOverlay = document.getElementById("pinOverlay");
     const pinInput   = document.getElementById("pinInput");
@@ -112,18 +149,13 @@
     pinInput.addEventListener("keydown", e=>{
       if(e.key === "Enter") { e.preventDefault(); tryUnlock(); }
     });
-    // Track activity
     ["click","keydown","scroll","mousemove","touchstart"].forEach(evt=>{
       document.addEventListener(evt, ()=>{ lastActivity = Date.now(); }, {passive:true});
     });
-    // Auto-lock loop
     setInterval(()=>{
-      if(unlocked && Date.now() - lastActivity > AUTOLOCK_MS){
-        showPin();
-      }
+      if(unlocked && Date.now() - lastActivity > AUTOLOCK_MS){ showPin(); }
     }, 1000);
-    // Show the PIN on load
-    showPin();
+    showPin(); // gate on load
 
     // =========================
     //  FIREBASE CHAT
@@ -142,7 +174,7 @@
     import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
     import {
       getFirestore, collection, addDoc, query, orderBy, limit,
-      onSnapshot, serverTimestamp
+      onSnapshot, serverTimestamp, deleteDoc, doc
     } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
     const app = initializeApp(firebaseConfig);
@@ -183,28 +215,37 @@
     });
 
     let stop = null;
+    let currentUid = null;
+
+    signInAnonymously(auth).catch(console.error);
+    onAuthStateChanged(auth, u => {
+      if (u) { currentUid = u.uid; subscribe(); }
+    });
+
     function subscribe(){
       if (stop){ stop(); stop=null; }
       msgsDiv.innerHTML = "";
       const q = query(collection(db,"rooms", room(), "msgs"), orderBy("ts","asc"), limit(500));
       stop = onSnapshot(q, snap=>{
         msgsDiv.innerHTML = "";
-        snap.forEach(doc => render(doc.data()));
+        snap.forEach(d => render(d.id, d.data()));
         msgsDiv.scrollTop = msgsDiv.scrollHeight;
       });
     }
-
-    signInAnonymously(auth).catch(console.error);
-    onAuthStateChanged(auth, u => { if (u) subscribe(); });
 
     form.addEventListener("submit", async e=>{
       e.preventDefault();
       if(!unlocked){ showPin(); return; }
       const text = textBox.value.replace(/\s+$/,"");
       if(!text) return;
-      await addDoc(collection(db,"rooms", room(), "msgs"), { t:text.slice(0,2000), n:nick(), ts:serverTimestamp() });
+      await addDoc(collection(db,"rooms", room(), "msgs"), {
+        t: text.slice(0,2000),
+        n: nick(),
+        uid: currentUid,
+        ts: serverTimestamp()
+      });
       textBox.value = "";
-      lastActivity = Date.now(); // activity
+      lastActivity = Date.now();
     });
 
     textBox.addEventListener("keydown", e=>{
@@ -214,19 +255,51 @@
     });
 
     function esc(s){ return s.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
-    function render(m){
-      const me = m.n === nick();
-      const wrap = document.createElement("div"); wrap.className = "msg" + (me?" me":"");
-      const bubble = document.createElement("div"); bubble.className = "bubble" + (me?" me":"");
+
+    function render(id, m){
+      const mine = m.uid && currentUid && m.uid === currentUid;
+      const wrap = document.createElement("div");
+      wrap.className = "msg" + (mine?" me":"");
+
+      const col = document.createElement("div");
+      col.className = "col";
+
+      const bubble = document.createElement("div");
+      bubble.className = "bubble" + (mine?" me":"");
       const msg = esc(m.t||"")
         .replace(/:\)/g,"😊").replace(/:\(/g,"🙁").replace(/<3/g,"❤️")
         .replace(/\n/g,"<br>");
       bubble.innerHTML = msg;
-      const meta = document.createElement("div"); meta.className = "meta";
+
+      const meta = document.createElement("div");
+      meta.className = "meta";
       const time = m.ts?.toDate ? m.ts.toDate() : null;
       meta.textContent = `${m.n||"anon"} • ${time ? time.toLocaleString() : "sending…"}`;
-      wrap.appendChild(bubble); wrap.appendChild(meta); msgsDiv.appendChild(wrap);
-      lastActivity = Date.now(); // activity on new messages
+
+      col.appendChild(bubble);
+      col.appendChild(meta);
+
+      if(mine){
+        const actions = document.createElement("div");
+        actions.className = "actions";
+        const del = document.createElement("button");
+        del.className = "btn-icon";
+        del.title = "Delete message for everyone";
+        del.textContent = "🗑 Delete";
+        del.addEventListener("click", async ()=>{
+          if(confirm("Delete this message for everyone?")){
+            try{
+              await deleteDoc(doc(db,"rooms", room(), "msgs", id));
+            }catch(e){ alert("Delete failed: " + e.message); }
+          }
+        });
+        actions.appendChild(del);
+        col.appendChild(actions);
+      }
+
+      wrap.appendChild(col);
+      msgsDiv.appendChild(wrap);
+      lastActivity = Date.now();
     }
   </script>
 </body>
