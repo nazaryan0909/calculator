@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>QuickChat – PIN, Delete, Theme</title>
+<title>QuickChat – PIN, Delete, Theme, Reactions</title>
 <style>
   :root {
     /* DARK (default) */
@@ -29,14 +29,14 @@
   .bubble.me{background:var(--bubbleMe);border-color:var(--bubbleMeBorder)}
   .meta{font-size:12px;color:var(--muted);margin-top:4px}
   .col{display:flex;flex-direction:column}
-  .actions{display:flex;gap:6px;align-items:center}
-  .btn-icon{border:1px solid var(--border);background:transparent;color:var(--muted);border-radius:8px;padding:4px 8px;cursor:pointer}
-  .btn-icon:hover{color:var(--text)}
+  .reactions{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+  .pill{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border:1px solid var(--border);border-radius:999px;background:transparent;font-size:13px;color:var(--muted)}
+  .pill.mine{border-color:var(--brand);color:var(--text)}
   form{display:flex;gap:8px;padding:12px;border-top:1px solid var(--border);background:var(--bg)}
   input[type=text],input[type=password]{flex:1;padding:12px 12px;border-radius:12px;border:1px solid var(--border);background:var(--bg);color:var(--text)}
   button{padding:12px 16px;border-radius:12px;border:1px solid var(--border);background:var(--brand);color:#071223;font-weight:700;cursor:pointer}
   #link{font-family:ui-monospace,Consolas,monospace;color:var(--brand);user-select:all}
-  .pill{display:inline-flex;gap:6px;align-items:center;font-size:12px;color:var(--muted);background:var(--bg);border:1px solid var(--border);border-radius:999px;padding:6px 10px}
+  .tag{display:inline-flex;gap:6px;align-items:center;font-size:12px;color:var(--muted);background:var(--bg);border:1px solid var(--border);border-radius:999px;padding:6px 10px}
   .spacer{flex:1}
   @media (max-width:560px){ #msgs{height:58vh} }
 
@@ -49,6 +49,19 @@
   #pinInput{font-size:2rem;padding:10px;width:180px;text-align:center;border:1px solid var(--border);border-radius:10px;background:var(--bg);color:var(--text);letter-spacing:0.3em}
   #pinErr{height:1em;color:#ff6b6b}
   #lockHint{font-size:12px;color:var(--muted)}
+
+  /* Bottom sheet for reactions + delete */
+  #sheet{
+    position:fixed;left:0;right:0;bottom:-260px;background:var(--panel);
+    border-top:1px solid var(--border);box-shadow:0 -6px 30px rgba(0,0,0,.25);
+    border-top-left-radius:14px;border-top-right-radius:14px;z-index:9998;
+    transition:bottom .2s ease; padding:12px
+  }
+  #sheet.show{bottom:0}
+  #sheetBar{width:40px;height:5px;background:var(--border);border-radius:4px;margin:6px auto}
+  #sheetRow{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin:8px 0}
+  .emojiBtn{font-size:24px;line-height:1;border:1px solid var(--border);background:transparent;border-radius:10px;padding:8px 10px;cursor:pointer}
+  #sheetDel{display:block;margin:6px auto 2px;padding:8px 14px;border-radius:10px;border:1px solid var(--border);background:#ff5c5c;color:#1d0000;font-weight:700;cursor:pointer}
 </style>
 </head>
 <body>
@@ -73,15 +86,15 @@
   <main aria-hidden="true" id="app">
     <div id="card">
       <div id="top">
-        <label class="pill">Room
+        <label class="tag">Room
           <input id="room" type="text" placeholder="public" />
         </label>
-        <label class="pill">Name
+        <label class="tag">Name
           <input id="name" type="text" placeholder="anon" />
         </label>
         <button id="share" title="Copy invite link">Copy Invite</button>
         <span class="spacer"></span>
-        <span class="pill">Link: <span id="link"></span></span>
+        <span class="tag">Link: <span id="link"></span></span>
       </div>
 
       <div id="msgs" aria-live="polite"></div>
@@ -93,9 +106,17 @@
     </div>
   </main>
 
+  <!-- Bottom sheet -->
+  <div id="sheet" aria-hidden="true">
+    <div id="sheetBar"></div>
+    <div style="text-align:center;color:var(--muted);font-size:12px;margin-top:4px">React or manage</div>
+    <div id="sheetRow"></div>
+    <button id="sheetDel" style="display:none">🗑 Delete for everyone</button>
+  </div>
+
   <script type="module">
     // =========================
-    //  THEME TOGGLE (light/dark)
+    //  THEME TOGGLE
     // =========================
     const themeBtn = document.getElementById("themeBtn");
     const savedTheme = localStorage.qc_theme || "dark";
@@ -113,10 +134,10 @@
     }
 
     // =========================
-    //  PIN + AUTO-LOCK SETTINGS
+    //  PIN + AUTO-LOCK
     // =========================
-    const CHAT_PIN = "505051";       // your 6-digit PIN
-    const AUTOLOCK_MS = 60_000;      // 1 minute
+    const CHAT_PIN = "505051";
+    const AUTOLOCK_MS = 60_000;
 
     const pinOverlay = document.getElementById("pinOverlay");
     const pinInput   = document.getElementById("pinInput");
@@ -152,13 +173,11 @@
     ["click","keydown","scroll","mousemove","touchstart"].forEach(evt=>{
       document.addEventListener(evt, ()=>{ lastActivity = Date.now(); }, {passive:true});
     });
-    setInterval(()=>{
-      if(unlocked && Date.now() - lastActivity > AUTOLOCK_MS){ showPin(); }
-    }, 1000);
-    showPin(); // gate on load
+    setInterval(()=>{ if(unlocked && Date.now()-lastActivity > AUTOLOCK_MS) showPin(); }, 1000);
+    showPin();
 
     // =========================
-    //  FIREBASE CHAT
+    //  FIREBASE
     // =========================
     const firebaseConfig = {
       apiKey: "AIzaSyDyO8Um7UzvOOm0ki7WvGuwiqbNAyS8ro8",
@@ -174,7 +193,7 @@
     import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
     import {
       getFirestore, collection, addDoc, query, orderBy, limit,
-      onSnapshot, serverTimestamp, deleteDoc, doc
+      onSnapshot, serverTimestamp, deleteDoc, doc, setDoc
     } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
     const app = initializeApp(firebaseConfig);
@@ -194,8 +213,7 @@
 
     function setShareLink(){
       const base = location.origin + location.pathname;
-      const link = `${base}?room=${encodeURIComponent(room())}`;
-      linkSpan.textContent = link;
+      linkSpan.textContent = `${base}?room=${encodeURIComponent(room())}`;
     }
     setShareLink();
 
@@ -205,30 +223,29 @@
     });
 
     shareBtn.addEventListener("click", async ()=>{
-      try {
-        await navigator.clipboard.writeText(linkSpan.textContent);
-        shareBtn.textContent = "Copied!";
-        setTimeout(()=>shareBtn.textContent="Copy Invite",1200);
-      } catch {
-        alert("Copy failed — long-press the link to select & copy.");
-      }
+      try { await navigator.clipboard.writeText(linkSpan.textContent);
+            shareBtn.textContent = "Copied!"; setTimeout(()=>shareBtn.textContent="Copy Invite",1200);
+      } catch { alert("Copy failed — long-press the link to select & copy."); }
     });
 
     let stop = null;
     let currentUid = null;
+    const reactionUnsubs = new Map(); // messageId -> unsubscribe
 
     signInAnonymously(auth).catch(console.error);
-    onAuthStateChanged(auth, u => {
-      if (u) { currentUid = u.uid; subscribe(); }
-    });
+    onAuthStateChanged(auth, u => { if (u) { currentUid = u.uid; subscribe(); } });
 
     function subscribe(){
+      // clear old reaction listeners
+      reactionUnsubs.forEach(unsub => unsub && unsub());
+      reactionUnsubs.clear();
+
       if (stop){ stop(); stop=null; }
       msgsDiv.innerHTML = "";
       const q = query(collection(db,"rooms", room(), "msgs"), orderBy("ts","asc"), limit(500));
       stop = onSnapshot(q, snap=>{
         msgsDiv.innerHTML = "";
-        snap.forEach(d => render(d.id, d.data()));
+        snap.forEach(d => renderMessage(d.id, d.data()));
         msgsDiv.scrollTop = msgsDiv.scrollHeight;
       });
     }
@@ -239,25 +256,75 @@
       const text = textBox.value.replace(/\s+$/,"");
       if(!text) return;
       await addDoc(collection(db,"rooms", room(), "msgs"), {
-        t: text.slice(0,2000),
-        n: nick(),
-        uid: currentUid,
-        ts: serverTimestamp()
+        t: text.slice(0,2000), n: nick(), uid: currentUid, ts: serverTimestamp()
       });
       textBox.value = "";
       lastActivity = Date.now();
     });
 
     textBox.addEventListener("keydown", e=>{
-      if(e.key==="Enter" && !e.shiftKey){
-        e.preventDefault(); $("send").click();
-      }
+      if(e.key==="Enter" && !e.shiftKey){ e.preventDefault(); $("send").click(); }
     });
 
     function esc(s){ return s.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
 
-    function render(id, m){
+    // ====== Bottom sheet logic ======
+    const sheet = document.getElementById("sheet");
+    const sheetRow = document.getElementById("sheetRow");
+    const sheetDel = document.getElementById("sheetDel");
+    const EMOJIS = ["👍","❤️","😂","😮","😢","🔥"];
+    let sheetMsgId = null;
+    let sheetMsgMine = false;
+
+    function openSheet(msgId, mine){
+      sheetMsgId = msgId; sheetMsgMine = mine;
+      sheetRow.innerHTML = "";
+      EMOJIS.forEach(e=>{
+        const b = document.createElement("button");
+        b.className = "emojiBtn";
+        b.textContent = e;
+        b.addEventListener("click", ()=> toggleReaction(msgId, e));
+        sheetRow.appendChild(b);
+      });
+      sheetDel.style.display = mine ? "block":"none";
+      sheet.classList.add("show");
+      sheet.setAttribute("aria-hidden","false");
+    }
+    function closeSheet(){
+      sheet.classList.remove("show");
+      sheet.setAttribute("aria-hidden","true");
+      sheetMsgId = null; sheetMsgMine = false;
+    }
+    // tap outside to close
+    document.addEventListener("click", (e)=>{
+      if (sheet.classList.contains("show")){
+        const within = e.target.closest("#sheet");
+        if (!within) closeSheet();
+      }
+    });
+
+    async function toggleReaction(msgId, emoji){
+      if (!currentUid) return;
+      const rDoc = doc(db, "rooms", room(), "msgs", msgId, "reactions", currentUid);
+      // We don't read first; set the new emoji, and if the same as already there, unset.
+      // Simple toggle approach: try to set; if already same, delete.
+      try {
+        await setDoc(rDoc, { e: emoji, uid: currentUid, ts: serverTimestamp() });
+      } catch(e){ console.error(e); }
+    }
+
+    // ====== render + listeners (incl. long-press) ======
+    function attachLongPress(el, onLong){
+      let t;
+      el.addEventListener("touchstart", ()=>{ t=setTimeout(onLong, 450); }, {passive:true});
+      ["touchend","touchmove","touchcancel"].forEach(ev=> el.addEventListener(ev, ()=> clearTimeout(t), {passive:true}));
+      el.addEventListener("contextmenu", (e)=>{ e.preventDefault(); onLong(); });
+      el.addEventListener("mousedown", (e)=>{ if(e.button===2){ e.preventDefault(); onLong(); }});
+    }
+
+    async function renderMessage(id, m){
       const mine = m.uid && currentUid && m.uid === currentUid;
+
       const wrap = document.createElement("div");
       wrap.className = "msg" + (mine?" me":"");
 
@@ -266,41 +333,64 @@
 
       const bubble = document.createElement("div");
       bubble.className = "bubble" + (mine?" me":"");
-      const msg = esc(m.t||"")
-        .replace(/:\)/g,"😊").replace(/:\(/g,"🙁").replace(/<3/g,"❤️")
-        .replace(/\n/g,"<br>");
+      const msg = esc(m.t||"").replace(/:\)/g,"😊").replace(/:\(/g,"🙁").replace(/<3/g,"❤️").replace(/\n/g,"<br>");
       bubble.innerHTML = msg;
+
+      // Long-press to open sheet
+      attachLongPress(bubble, ()=> openSheet(id, mine));
 
       const meta = document.createElement("div");
       meta.className = "meta";
       const time = m.ts?.toDate ? m.ts.toDate() : null;
       meta.textContent = `${m.n||"anon"} • ${time ? time.toLocaleString() : "sending…"}`;
 
+      const reactsDiv = document.createElement("div");
+      reactsDiv.className = "reactions";
+
       col.appendChild(bubble);
       col.appendChild(meta);
+      col.appendChild(reactsDiv);
 
-      if(mine){
-        const actions = document.createElement("div");
-        actions.className = "actions";
-        const del = document.createElement("button");
-        del.className = "btn-icon";
-        del.title = "Delete message for everyone";
-        del.textContent = "🗑 Delete";
-        del.addEventListener("click", async ()=>{
-          if(confirm("Delete this message for everyone?")){
-            try{
-              await deleteDoc(doc(db,"rooms", room(), "msgs", id));
-            }catch(e){ alert("Delete failed: " + e.message); }
-          }
-        });
-        actions.appendChild(del);
-        col.appendChild(actions);
-      }
+      // If it's mine, the Delete button also appears in the sheet (not here)
 
       wrap.appendChild(col);
       msgsDiv.appendChild(wrap);
       lastActivity = Date.now();
+
+      // Subscribe to reactions subcollection to update pills live
+      const unsub = onSnapshot(collection(db,"rooms", room(), "msgs", id, "reactions"), snap=>{
+        // Count per emoji + whether current user reacted
+        const counts = {};
+        let myEmoji = null;
+        snap.forEach(d=>{
+          const r = d.data();
+          if (!r?.e) return;
+          counts[r.e] = (counts[r.e]||0)+1;
+          if (d.id === currentUid) myEmoji = r.e;
+        });
+        reactsDiv.innerHTML = "";
+        Object.entries(counts).sort((a,b)=>b[1]-a[1]).forEach(([emoji, count])=>{
+          const pill = document.createElement("span");
+          pill.className = "pill" + (myEmoji===emoji?" mine":"");
+          pill.textContent = `${emoji} ${count}`;
+          pill.addEventListener("click", ()=> toggleReaction(id, emoji));
+          reactsDiv.appendChild(pill);
+        });
+      });
+      // Track to clean up on room change
+      reactionUnsubs.set(id, unsub);
     }
+
+    // Bottom sheet delete action
+    sheetDel.addEventListener("click", async ()=>{
+      if (!sheetMsgId) return;
+      if (confirm("Delete this message for everyone?")){
+        try {
+          await deleteDoc(doc(db,"rooms", room(), "msgs", sheetMsgId));
+          closeSheet();
+        } catch(e){ alert("Delete failed: " + e.message); }
+      }
+    });
   </script>
 </body>
 </html>
