@@ -311,7 +311,6 @@
 
   // ---- DMs + Typing + Search + Reactions + Seen ----
   function esc(s){ return s.replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
-  function dmId(a,b){ return [a,b].sort().join("_"); }
 
   async function ensureChat(a,b){
     const cid=dmId(a,b);
