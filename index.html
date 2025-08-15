@@ -514,7 +514,12 @@ async function subscribeMessages(retryOnce=false){
       await setDoc(rDoc, { e: emoji, uid: me.uid, ts: serverTimestamp() });
     }
   }
-
+// Escape HTML special characters so people can't inject HTML
+function esc(s) {
+  return String(s ?? "").replace(/[&<>]/g, c => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]
+  ));
+}
   // Render message + reactions + receipts + delete
   function renderMsg(id, m){
     const mine = m.uid === me.uid;
