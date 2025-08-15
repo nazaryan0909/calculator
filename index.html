@@ -2,22 +2,42 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>QuickChat – Accounts, DMs, Reactions, Seen</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>QuickChat – Telegram-style</title>
 <style>
-  :root{--bg:#0b0f14;--panel:#121821;--muted:#93a1b1;--text:#e6edf3;--brand:#5da0ff;--border:#1e2633;--bubble:#0f1826;--bubbleMe:#0e203a;--bubbleMeBorder:#234a96}
-  [data-theme="light"]{--bg:#f7f9fc;--panel:#fff;--muted:#5d6b7a;--text:#0b1625;--brand:#2b6cff;--border:#dde5ee;--bubble:#f1f5fb;--bubbleMe:#e8f0ff;--bubbleMeBorder:#bcd0ff}
-  *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px/1.4 system-ui,Segoe UI,Arial}
-  header{padding:12px;background:linear-gradient(180deg,rgba(14,20,32,.6),transparent)}
-  .row{max-width:1100px;margin:0 auto;display:flex;gap:8px;align-items:center;padding:0 12px}
-  h1{margin:0;font-size:18px;font-weight:700}
-  #themeBtn{margin-left:auto;padding:8px 12px;border-radius:10px;border:1px solid var(--border);background:var(--panel);color:var(--text);cursor:pointer}
-  #logoutBtn{border:1px solid var(--border);background:transparent;color:var(--muted);border-radius:10px;padding:8px 12px;cursor:pointer}
-  #badge{display:inline-flex;min-width:18px;height:18px;border-radius:9px;background:#ff5c5c;color:#fff;font-size:12px;align-items:center;justify-content:center;padding:0 6px;margin-left:6px}
-  main{max-width:1100px;margin:0 auto;padding:14px;display:flex;gap:12px}
-  #left{width:300px;min-width:240px;border:1px solid var(--border);background:var(--panel);border-radius:14px;overflow:hidden}
+  :root{
+    --bg:#0c1117; --panel:#101822; --muted:#8aa0b6; --text:#e7eef6; --brand:#4ea1ff; --border:#1f2a3a;
+    --bubble:#142233; --bubbleMe:#15324e; --bubbleMeBorder:#2b68b3;
+  }
+  [data-theme="light"]{
+    --bg:#f6f9fd; --panel:#ffffff; --muted:#5c6a79; --text:#0b1625; --brand:#2b6cff; --border:#dfe7f1;
+    --bubble:#eef3fb; --bubbleMe:#e6efff; --bubbleMeBorder:#bcd0ff;
+  }
+
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--text);font:16px/1.4 system-ui,Segoe UI,Arial}
+
+  /* Top app bar */
+  header{position:sticky;top:0;z-index:10;background:var(--panel);border-bottom:1px solid var(--border)}
+  .row{max-width:1100px;margin:0 auto;display:flex;gap:8px;align-items:center;justify-content:flex-start;padding:10px 12px}
+  h1{margin:0;font-size:17px;font-weight:700}
+  #chatTitle{margin-left:8px;font-weight:600;opacity:.9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:45vw}
+  #themeBtn,#logoutBtn,#menuBtn{
+    padding:8px 12px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--text);cursor:pointer
+  }
+  #themeBtn{margin-left:auto}
+
+  main{max-width:1100px;margin:0 auto;padding:0 12px;height:calc(100dvh - 58px);display:flex;gap:12px}
+
+  /* Drawer (friends + requests) */
+  #drawer{position:relative;width:300px;min-width:260px}
+  #left{
+    position:sticky;top:12px;height:calc(100dvh - 82px);overflow:auto;
+    border:1px solid var(--border);background:var(--panel);border-radius:14px
+  }
   #friendsHead{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--border)}
-  #friends{max-height:26vh;overflow:auto}
+  #friends,#reqs{max-height:none;overflow:visible}
   .friend,.req{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border)}
   .friend:hover,.req:hover{background:rgba(255,255,255,.04)}
   .small{color:var(--muted);font-size:12px}
@@ -25,15 +45,19 @@
   .btn{padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text);cursor:pointer}
   .btn-warn{background:#ff5c5c;color:#1d0000;border-color:#e54}
   #reqsHead{padding:8px 12px;border-top:1px solid var(--border);border-bottom:1px solid var(--border);font-weight:600;display:flex;align-items:center;gap:8px}
-  #reqs{max-height:26vh;overflow:auto}
   #addFriendForm{display:flex;gap:6px;padding:10px 12px;border-top:1px solid var(--border)}
   #addU{flex:1;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text)}
-  #card{flex:1;border:1px solid var(--border);background:var(--panel);border-radius:14px;overflow:hidden}
+  #badge{display:inline-flex;min-width:18px;height:18px;border-radius:9px;background:#ff5c5c;color:#fff;font-size:12px;align-items:center;justify-content:center;padding:0 6px;margin-left:6px}
+
+  /* Chat column */
+  #card{flex:1;display:flex;flex-direction:column;height:100%;
+        border:1px solid var(--border);background:var(--panel);border-radius:14px}
   #top{display:flex;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border);flex-wrap:wrap}
-  #chatWith{font-weight:700}
-  #search{margin-left:auto;min-width:180px;padding:8px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text)}
-  #msgs{height:58vh;min-height:320px;overflow:auto;padding:12px;scroll-behavior:smooth}
-  .msg{margin:8px 0;max-width:86%;display:flex;gap:8px}
+  #search{margin-left:auto;min-width:160px;padding:8px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text)}
+  #msgs{flex:1;overflow:auto;padding:12px;scroll-behavior:smooth}
+  #typing{padding:6px 12px;color:var(--muted);font-size:12px}
+
+  .msg{margin:8px 0;max-width:88%;display:flex;gap:8px}
   .me{margin-left:auto;justify-content:flex-end}
   .bubble{display:inline-block;padding:10px 12px;border-radius:12px;border:1px solid var(--border);background:var(--bubble)}
   .bubble.me{background:var(--bubbleMe);border-color:var(--bubbleMeBorder)}
@@ -42,65 +66,96 @@
   .reactions{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
   .pill{display:inline-flex;align-items:center;gap:6px;padding:2px 8px;border:1px solid var(--border);border-radius:999px;background:transparent;font-size:13px;color:var(--muted)}
   .pill.mine{border-color:var(--brand);color:var(--text)}
-  #typing{padding:6px 12px;color:var(--muted);font-size:12px}
-  form#form{display:flex;gap:8px;padding:12px;border-top:1px solid var(--border);background:var(--bg)}
-  input[type=text],input[type=password]{flex:1;padding:12px;border-radius:12px;border:1px solid var(--border);background:var(--bg);color:var(--text)}
-  button{padding:12px 16px;border-radius:12px;border:1px solid var(--border);background:var(--brand);color:#071223;font-weight:700;cursor:pointer}
-  @media (max-width:900px){#left{display:none}}
+
+  #emojiBar{display:flex;gap:6px;padding:6px 12px;border-top:1px dashed var(--border)}
+  .emojiBtn{font-size:20px;line-height:1;border:1px solid var(--border);background:transparent;border-radius:10px;padding:6px 8px;cursor:pointer}
+
+  form#form{display:flex;gap:8px;padding:12px;border-top:1px solid var(--border);background:var(--panel)}
+  input[type=text]{flex:1;padding:12px;border-radius:12px;border:1px solid var(--border);background:var(--bg);color:var(--text)}
+  button#send{padding:12px 16px;border-radius:12px;border:1px solid var(--border);background:var(--brand);color:#071223;font-weight:700;cursor:pointer}
+
   /* Auth modal */
   #authModal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:9999}
   #authCard{width:360px;max-width:92vw;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px}
   #authCard h3{margin:6px 0 8px}
   #authCard .row{display:flex;flex-direction:column;gap:8px}
   #authErr{color:#ff6b6b;min-height:1em}
-  /* Emoji picker (simple) */
-  #emojiBar{display:flex;gap:6px;padding:6px 12px;border-top:1px dashed var(--border)}
-  .emojiBtn{font-size:20px;line-height:1;border:1px solid var(--border);background:transparent;border-radius:10px;padding:6px 8px;cursor:pointer}
+
+  /* --- Mobile: Telegram-like --- */
+  @media (max-width: 900px){
+    #menuBtn{display:inline-block}
+    #drawer{
+      position:fixed; inset:0 auto 0 0; width:86%; max-width:360px; z-index:20;
+      transform:translateX(-100%); transition:.2s ease transform;
+    }
+    #drawer.open{ transform:translateX(0) }
+    #drawerOverlay{
+      position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:19; display:none;
+    }
+    #drawerOverlay.show{ display:block }
+
+    main{padding:0; height:calc(100dvh - 58px)}
+    #card{border-radius:0}
+    #search{display:none}
+    #chatTitle{max-width:38vw}
+  }
+
+  /* Desktop tweaks */
+  @media (min-width: 901px){
+    #menuBtn{display:none}
+    #drawerOverlay{display:none!important}
+  }
 </style>
 </head>
 <body>
-  <!-- Auth (username + password) -->
+  <!-- Auth (username + password), wrapped in a form to satisfy password-managers -->
   <div id="authModal" style="display:none">
     <div id="authCard">
       <h3>Sign in</h3>
-      <div class="row">
-        <input id="username" placeholder="Username (a-z, 0-9, _)" maxlength="20">
-        <input id="password" type="password" placeholder="Password (min 6)">
+      <form id="authForm" class="row">
+        <input id="username" placeholder="Username (a-z, 0-9, _)" maxlength="20" autocomplete="username">
+        <input id="password" type="password" placeholder="Password (min 6)" autocomplete="current-password">
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button id="loginBtn"  style="flex:1">Log in</button>
-          <button id="signupBtn" style="flex:1">Create account</button>
+          <button id="loginBtn"  type="button" style="flex:1">Log in</button>
+          <button id="signupBtn" type="button" style="flex:1">Create account</button>
         </div>
         <div id="authErr"></div>
-      </div>
+      </form>
     </div>
   </div>
 
   <header>
     <div class="row">
+      <button id="menuBtn" title="Friends">☰</button>
       <h1>QuickChat</h1>
-      <div id="meTag" class="small"></div>
+      <span id="chatTitle"></span>
       <button id="themeBtn" aria-pressed="false">🌙 Dark</button>
       <button id="logoutBtn" title="Sign out">Sign out</button>
     </div>
   </header>
 
   <main id="app">
-    <!-- Left: friends & requests -->
-    <aside id="left">
-      <div id="friendsHead">
-        <strong>Friends</strong>
-        <span style="margin-left:auto" class="small">Requests <span id="badge" style="display:none">0</span></span>
+    <!-- Drawer overlay for mobile -->
+    <div id="drawerOverlay"></div>
+
+    <!-- Friends drawer -->
+    <aside id="drawer">
+      <div id="left">
+        <div id="friendsHead">
+          <strong>Friends</strong>
+          <span style="margin-left:auto" class="small">Requests <span id="badge" style="display:none">0</span></span>
+        </div>
+        <div id="friends"></div>
+        <div id="reqsHead">Incoming requests</div>
+        <div id="reqs"></div>
+        <form id="addFriendForm">
+          <input id="addU" placeholder="Add by username" />
+          <button type="submit">Add</button>
+        </form>
       </div>
-      <div id="friends"></div>
-      <div id="reqsHead">Incoming requests</div>
-      <div id="reqs"></div>
-      <form id="addFriendForm">
-        <input id="addU" placeholder="Add by username" />
-        <button>Add</button>
-      </form>
     </aside>
 
-    <!-- Right: chat -->
+    <!-- Chat column -->
     <section id="card">
       <div id="top">
         <div id="chatWith">Pick a friend to start chatting</div>
@@ -109,7 +164,7 @@
       <div id="msgs" aria-live="polite"></div>
       <div id="typing"></div>
       <div id="emojiBar">
-        <button class="emojiBtn">😀</button><button class="emojiBtn">😂</button><button class="emojiBtn">❤️</button><button class="emojiBtn">👍</button><button class="emojiBtn">🔥</button><button class="emojiBtn">😮</button>
+        <button class="emojiBtn" type="button">😀</button><button class="emojiBtn" type="button">😂</button><button class="emojiBtn" type="button">❤️</button><button class="emojiBtn" type="button">👍</button><button class="emojiBtn" type="button">🔥</button><button class="emojiBtn" type="button">😮</button>
       </div>
       <form id="form" autocomplete="off">
         <input id="text" type="text" placeholder="Type a message…  (Enter to send, Shift+Enter = newline)" />
@@ -138,17 +193,28 @@
     query, orderBy, serverTimestamp, deleteDoc, getDocs, updateDoc
   } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
+  // ---- Init ----
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
   const db = getFirestore(app);
 
   // ---- UI ----
   const $ = id => document.getElementById(id);
-  const authModal=$("authModal"), usernameEl=$("username"), passwordEl=$("password"), loginBtn=$("loginBtn"), signupBtn=$("signupBtn"), authErr=$("authErr");
-  const themeBtn=$("themeBtn"), logoutBtn=$("logoutBtn"), meTag=$("meTag");
+  const authModal=$("authModal"), authForm=$("authForm"), usernameEl=$("username"), passwordEl=$("password"), loginBtn=$("loginBtn"), signupBtn=$("signupBtn"), authErr=$("authErr");
+  const themeBtn=$("themeBtn"), logoutBtn=$("logoutBtn");
   const friendsDiv=$("friends"), reqsDiv=$("reqs"), addFriendForm=$("addFriendForm"), addU=$("addU"), badge=$("badge");
   const chatWith=$("chatWith"), msgsDiv=$("msgs"), form=$("form"), textBox=$("text"), typingDiv=$("typing"), searchBox=$("search");
-  const emojiBar=document.getElementById("emojiBar");
+  const emojiBar=$("emojiBar");
+  const menuBtn = $("menuBtn"), drawer = $("drawer"), drawerOverlay = $("drawerOverlay"), chatTitle = $("chatTitle");
+
+  // ===== Drawer open/close (mobile) =====
+  function openDrawer(){ drawer.classList.add("open"); drawerOverlay.classList.add("show"); }
+  function closeDrawer(){ drawer.classList.remove("open"); drawerOverlay.classList.remove("show"); }
+  function closeDrawerIfMobile(){ if (window.matchMedia("(max-width: 900px)").matches) closeDrawer(); }
+  menuBtn?.addEventListener("click", openDrawer);
+  drawerOverlay?.addEventListener("click", closeDrawer);
+
+  function setChatTitle(name, uname){ chatTitle.textContent = name ? `— ${name} ${uname||""}` : ""; }
 
   // ---- Theme ----
   const savedTheme = localStorage.qc_theme || "dark";
@@ -167,20 +233,20 @@
 
   // ---- State ----
   let me = { uid:null, username:null, displayName:null };
-  let activeFriend = null;          // friend's uid
+  let activeFriend = null;
   let activeFriendName = "";
   let activeFriendUname = "";
-  let activeChatId = null;          // chats/{uidA_uidB}
+  let activeChatId = null;
   let stopMsgs = null, stopReqs = null, stopTypingOther = null;
-  let localCache = [];              // for search
   let typingTimeout = null;
   const EMOJIS = ["😀","😂","❤️","👍","🔥","😮"];
 
   function dmId(a,b){ return [a,b].sort().join("_"); }
 
-  // ---- Auth modal ----
+  // ---- Auth modal helpers ----
   function showAuth(msg=""){ authErr.textContent=msg; authModal.style.display="flex"; }
   function hideAuth(){ authModal.style.display="none"; }
+  authForm.addEventListener("submit", e=>e.preventDefault()); // avoid page reload
 
   signupBtn.onclick = async ()=>{
     authErr.textContent="";
@@ -213,7 +279,6 @@
     const udoc=await getDoc(doc(db,"users",user.uid));
     const data=udoc.data()||{};
     me.uid=user.uid; me.username=data.username||user.displayName?.toLowerCase(); me.displayName=data.displayName||me.username||"me";
-    meTag.textContent = `@${me.username}`;
     hideAuth();
     await loadFriends();
     subscribeRequestsBadge();
@@ -299,13 +364,12 @@
     if(!confirm("Remove this friend?")) return;
     await deleteDoc(doc(db,"friends",me.uid,"list",fuid));
     await deleteDoc(doc(db,"friends",fuid,"list",me.uid));
-    if(activeFriend===fuid){ activeFriend=null; activeChatId=null; msgsDiv.innerHTML=""; chatWith.textContent="Pick a friend to start chatting"; }
+    if(activeFriend===fuid){ activeFriend=null; activeChatId=null; msgsDiv.innerHTML=""; chatWith.textContent="Pick a friend to start chatting"; setChatTitle(""); }
     await loadFriends();
   }
   async function blockFriend(fuid){
     if(!confirm("Block this user? They won’t be able to DM you.")) return;
     await setDoc(doc(db,"blocks",me.uid,"list",fuid),{ since:serverTimestamp() });
-    // Optionally remove from friends lists:
     await removeFriend(fuid).catch(()=>{});
   }
 
@@ -329,21 +393,20 @@
     activeFriendUname = friendUname || "";
     activeChatId = await ensureChat(me.uid, friendUid);
     chatWith.textContent = `Chat with ${friendName||""} ${friendUname||""}`;
+    setChatTitle(friendName, friendUname);
     subscribeMessages();
     subscribeTypingOfOther();
+    closeDrawerIfMobile();
   }
 
   function subscribeMessages(){
     if(!activeChatId){ msgsDiv.innerHTML=`<div class="small" style="padding:10px">Pick a friend.</div>`; return; }
     if(stopMsgs){ stopMsgs(); stopMsgs=null; }
-    localCache = [];
     const qref=query(collection(db,"chats",activeChatId,"msgs"),orderBy("ts","asc"));
     stopMsgs = onSnapshot(qref, snap=>{
-      localCache = [];
       msgsDiv.innerHTML="";
       snap.forEach(d=>{
         const data=d.data();
-        localCache.push({id:d.id, ...data});
         renderMsg(d.id, data);
         // Mark messages from friend as seen
         if(data.uid !== me.uid){
@@ -374,7 +437,7 @@
     });
   }
 
-  // Send message + quick emoji insert
+  // Quick emoji insert
   emojiBar.querySelectorAll(".emojiBtn").forEach(btn=>{
     btn.addEventListener("click", ()=>{
       textBox.value += btn.textContent;
@@ -383,6 +446,7 @@
     });
   });
 
+  // Send message
   form.addEventListener("submit", async (e)=>{
     e.preventDefault();
     if(!activeChatId){ alert("Pick a friend on the left first."); return; }
@@ -397,7 +461,6 @@
   // Reactions toggle (per user per message)
   async function toggleReaction(msgId, emoji){
     const rDoc = doc(db,"chats",activeChatId,"msgs",msgId,"reactions",me.uid);
-    // Simple set (click same emoji pill to overwrite); to remove, click your pill in list again:
     const existing = await getDoc(rDoc);
     const current = existing.data()?.e;
     if(current === emoji){
@@ -407,7 +470,7 @@
     }
   }
 
-  // Render message + reactions + receipts
+  // Render message + reactions + receipts + delete
   function renderMsg(id, m){
     const mine = m.uid === me.uid;
     const wrap=document.createElement("div"); wrap.className="msg"+(mine?" me":"");
@@ -424,12 +487,10 @@
       const seen = activeFriend && seenMap[activeFriend];
       status = seen ? " • seen" : " • delivered";
     }
-
     meta.textContent = `${m.n||"anon"} • ${time? time.toLocaleString():"sending…"}${status}`;
 
-    // Reactions view
+    // Reactions live
     const reactsDiv=document.createElement("div"); reactsDiv.className="reactions";
-    // Live reactions subcollection
     onSnapshot(collection(db,"chats",activeChatId,"msgs",id,"reactions"), (snap)=>{
       const counts={}; let myEmoji=null;
       snap.forEach(d=>{ const r=d.data(); if(!r?.e) return; counts[r.e]=(counts[r.e]||0)+1; if(d.id===me.uid) myEmoji=r.e; });
@@ -443,7 +504,7 @@
       });
     });
 
-    // Quick reaction row (tap to add)
+    // Quick reaction row
     const quick=document.createElement("div"); quick.className="reactions";
     EMOJIS.forEach(e=>{
       const pill=document.createElement("span"); pill.className="pill"; pill.textContent=e;
@@ -476,7 +537,6 @@
     const q=(searchBox.value||"").toLowerCase();
     const children=[...msgsDiv.querySelectorAll(".msg")];
     if(!q){ children.forEach(el=>el.style.display=""); return; }
-    // Match against message text (bubble innerText)
     children.forEach(el=>{
       const text=(el.querySelector(".bubble")?.innerText||"").toLowerCase();
       el.style.display = text.includes(q) ? "" : "none";
