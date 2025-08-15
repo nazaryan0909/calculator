@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>QuickChat – 1 Page</title>
+<title>QuickChat – 1 Page (PIN Locked)</title>
 <style>
   :root { --bg:#0b0f14; --panel:#121821; --muted:#93a1b1; --text:#e6edf3; --brand:#5da0ff; }
   *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font:16px/1.4 system-ui,Segoe UI,Arial}
@@ -21,17 +21,37 @@
   .bubble.me{background:#0e203a;border-color:#234a96}
   .meta{font-size:12px;color:var(--muted);margin-top:4px}
   form{display:flex;gap:8px;padding:12px;border-top:1px solid #1e2633;background:#0f1520}
-  input[type=text]{flex:1;padding:12px 12px;border-radius:12px;border:1px solid #273143;background:#0b1220;color:var(--text)}
+  input[type=text],input[type=password]{flex:1;padding:12px 12px;border-radius:12px;border:1px solid #273143;background:#0b1220;color:var(--text)}
   button{padding:12px 16px;border-radius:12px;border:1px solid #2b3c6a;background:var(--brand);color:#071223;font-weight:700;cursor:pointer}
   #link{font-family:ui-monospace,Consolas,monospace;color:#b8c7ff;user-select:all}
   .pill{display:inline-flex;gap:6px;align-items:center;font-size:12px;color:#b0bdd0;background:#0d1424;border:1px solid #23304d;border-radius:999px;padding:6px 10px}
   .spacer{flex:1}
   @media (max-width:560px){ #msgs{height:58vh} }
+
+  /* PIN overlay */
+  #pinOverlay{
+    position:fixed;inset:0;background:#0b0f14;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:12px;z-index:9999
+  }
+  #pinBox{display:flex;flex-direction:column;align-items:center;gap:10px}
+  #pinInput{font-size:2rem;padding:10px;width:140px;text-align:center;border:1px solid #273143;border-radius:10px;background:#0b1220;color:var(--text);letter-spacing:0.3em}
+  #pinErr{height:1em;color:#ff6b6b}
+  #lockHint{font-size:12px;color:#8aa0b6}
 </style>
 </head>
 <body>
+  <div id="pinOverlay" aria-modal="true" role="dialog">
+    <div id="pinBox">
+      <h2 style="margin:0">Enter 4-digit PIN</h2>
+      <input id="pinInput" type="password" inputmode="numeric" maxlength="4" autocomplete="one-time-code" />
+      <button id="pinBtn">Unlock</button>
+      <div id="pinErr"></div>
+      <div id="lockHint">Auto-locks after 1 minute of inactivity</div>
+    </div>
+  </div>
+
   <header><main><h1>QuickChat</h1></main></header>
-  <main>
+  <main aria-hidden="true" id="app">
     <div id="card">
       <div id="top">
         <label class="pill">Room
@@ -55,7 +75,59 @@
   </main>
 
   <script type="module">
-    // Firebase config (yours)
+    // =========================
+    //  PIN + AUTO-LOCK SETTINGS
+    // =========================
+    const CHAT_PIN = "1234";          // <<< change this to your 4-digit PIN
+    const AUTOLOCK_MS = 60_000;       // 1 minute inactivity
+
+    const pinOverlay = document.getElementById("pinOverlay");
+    const pinInput   = document.getElementById("pinInput");
+    const pinBtn     = document.getElementById("pinBtn");
+    const pinErr     = document.getElementById("pinErr");
+    const appMain    = document.getElementById("app");
+
+    let unlocked = false;
+    let lastActivity = Date.now();
+
+    function showPin(msg=""){
+      pinErr.textContent = msg;
+      pinOverlay.style.display = "flex";
+      appMain.setAttribute("aria-hidden","true");
+      unlocked = false;
+      setTimeout(()=>pinInput.focus(), 50);
+    }
+    function hidePin(){
+      pinOverlay.style.display = "none";
+      appMain.removeAttribute("aria-hidden");
+      unlocked = true;
+      lastActivity = Date.now();
+    }
+    function tryUnlock(){
+      const code = pinInput.value.trim();
+      if(code === CHAT_PIN){ hidePin(); pinInput.value=""; }
+      else { pinErr.textContent = "Incorrect PIN"; pinInput.select(); }
+    }
+    pinBtn.addEventListener("click", tryUnlock);
+    pinInput.addEventListener("keydown", e=>{
+      if(e.key === "Enter") { e.preventDefault(); tryUnlock(); }
+    });
+    // Track activity
+    ["click","keydown","scroll","mousemove","touchstart"].forEach(evt=>{
+      document.addEventListener(evt, ()=>{ lastActivity = Date.now(); }, {passive:true});
+    });
+    // Auto-lock loop
+    setInterval(()=>{
+      if(unlocked && Date.now() - lastActivity > AUTOLOCK_MS){
+        showPin();
+      }
+    }, 1000);
+    // Show the PIN on load
+    showPin();
+
+    // =========================
+    //  FIREBASE CHAT
+    // =========================
     const firebaseConfig = {
       apiKey: "AIzaSyDyO8Um7UzvOOm0ki7WvGuwiqbNAyS8ro8",
       authDomain: "calculator-l.firebaseapp.com",
@@ -75,12 +147,12 @@
 
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
-    const db = getFirestore(app);
+    const db   = getFirestore(app);
 
     const $ = id => document.getElementById(id);
     const roomInput = $("room"), nameInput = $("name"),
-          msgsDiv = $("msgs"), textBox = $("text"), form = $("form"),
-          linkSpan = $("link"), shareBtn = $("share");
+          msgsDiv   = $("msgs"), textBox   = $("text"), form = $("form"),
+          linkSpan  = $("link"), shareBtn  = $("share");
 
     const url = new URL(location.href);
     roomInput.value = url.searchParams.get("room") || localStorage.qc_room || "public";
@@ -101,9 +173,13 @@
     });
 
     shareBtn.addEventListener("click", async ()=>{
-      try{ await navigator.clipboard.writeText(linkSpan.textContent);
-           shareBtn.textContent="Copied!"; setTimeout(()=>shareBtn.textContent="Copy Invite",1200);
-      }catch{ alert("Copy failed — long-press the link to select & copy."); }
+      try {
+        await navigator.clipboard.writeText(linkSpan.textContent);
+        shareBtn.textContent = "Copied!";
+        setTimeout(()=>shareBtn.textContent="Copy Invite",1200);
+      } catch {
+        alert("Copy failed — long-press the link to select & copy.");
+      }
     });
 
     let stop = null;
@@ -119,18 +195,22 @@
     }
 
     signInAnonymously(auth).catch(console.error);
-    onAuthStateChanged(auth, u => { if(u) subscribe(); });
+    onAuthStateChanged(auth, u => { if (u) subscribe(); });
 
     form.addEventListener("submit", async e=>{
       e.preventDefault();
+      if(!unlocked){ showPin(); return; }
       const text = textBox.value.replace(/\s+$/,"");
       if(!text) return;
       await addDoc(collection(db,"rooms", room(), "msgs"), { t:text.slice(0,2000), n:nick(), ts:serverTimestamp() });
       textBox.value = "";
+      lastActivity = Date.now(); // activity
     });
 
     textBox.addEventListener("keydown", e=>{
-      if(e.key==="Enter" && !e.shiftKey){ e.preventDefault(); $("send").click(); }
+      if(e.key==="Enter" && !e.shiftKey){
+        e.preventDefault(); $("send").click();
+      }
     });
 
     function esc(s){ return s.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
@@ -138,12 +218,15 @@
       const me = m.n === nick();
       const wrap = document.createElement("div"); wrap.className = "msg" + (me?" me":"");
       const bubble = document.createElement("div"); bubble.className = "bubble" + (me?" me":"");
-      const msg = esc(m.t||"").replace(/:\)/g,"😊").replace(/:\(/g,"🙁").replace(/<3/g,"❤️").replace(/\n/g,"<br>");
+      const msg = esc(m.t||"")
+        .replace(/:\)/g,"😊").replace(/:\(/g,"🙁").replace(/<3/g,"❤️")
+        .replace(/\n/g,"<br>");
       bubble.innerHTML = msg;
       const meta = document.createElement("div"); meta.className = "meta";
       const time = m.ts?.toDate ? m.ts.toDate() : null;
       meta.textContent = `${m.n||"anon"} • ${time ? time.toLocaleString() : "sending…"}`;
       wrap.appendChild(bubble); wrap.appendChild(meta); msgsDiv.appendChild(wrap);
+      lastActivity = Date.now(); // activity on new messages
     }
   </script>
 </body>
