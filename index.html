@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>QuickChat – 1 Page</title>
+<style>
+  :root { --bg:#0b0f14; --panel:#121821; --muted:#93a1b1; --text:#e6edf3; --brand:#5da0ff; }
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font:16px/1.4 system-ui,Segoe UI,Arial}
+  header{padding:18px 16px;background:linear-gradient(180deg,#0e1420,#0b0f14)}
+  h1{margin:0;font-size:18px;font-weight:700;letter-spacing:.2px}
+  main{max-width:860px;margin:0 auto;padding:14px}
+  #card{border:1px solid #1e2633;background:var(--panel);border-radius:14px;overflow:hidden}
+  #top{display:flex;gap:8px;align-items:center;padding:12px 12px 10px;border-bottom:1px solid #1e2633;flex-wrap:wrap}
+  #room,#name{padding:10px;border-radius:10px;border:1px solid #273143;background:#0e1520;color:var(--text);min-width:160px}
+  #share{padding:10px 12px;border-radius:10px;border:1px solid #273143;background:#0e1520;color:var(--text);cursor:pointer}
+  #msgs{height:62vh;min-height:360px;overflow:auto;padding:12px;scroll-behavior:smooth}
+  .msg{margin:8px 0;max-width:80%}
+  .me{margin-left:auto;text-align:right}
+  .bubble{display:inline-block;padding:10px 12px;border-radius:12px;border:1px solid #223047;background:#0f1826}
+  .bubble.me{background:#0e203a;border-color:#234a96}
+  .meta{font-size:12px;color:var(--muted);margin-top:4px}
+  form{display:flex;gap:8px;padding:12px;border-top:1px solid #1e2633;background:#0f1520}
+  input[type=text]{flex:1;padding:12px 12px;border-radius:12px;border:1px solid #273143;background:#0b1220;color:var(--text)}
+  button{padding:12px 16px;border-radius:12px;border:1px solid #2b3c6a;background:var(--brand);color:#071223;font-weight:700;cursor:pointer}
+  #link{font-family:ui-monospace,Consolas,monospace;color:#b8c7ff;user-select:all}
+  .pill{display:inline-flex;gap:6px;align-items:center;font-size:12px;color:#b0bdd0;background:#0d1424;border:1px solid #23304d;border-radius:999px;padding:6px 10px}
+  .spacer{flex:1}
+  @media (max-width:560px){ #msgs{height:58vh} }
+</style>
+</head>
+<body>
+  <header><main><h1>QuickChat</h1></main></header>
+  <main>
+    <div id="card">
+      <div id="top">
+        <label class="pill">Room
+          <input id="room" type="text" placeholder="public" />
+        </label>
+        <label class="pill">Name
+          <input id="name" type="text" placeholder="anon" />
+        </label>
+        <button id="share" title="Copy invite link">Copy Invite</button>
+        <span class="spacer"></span>
+        <span class="pill">Link: <span id="link"></span></span>
+      </div>
+
+      <div id="msgs" aria-live="polite"></div>
+
+      <form id="form" autocomplete="off">
+        <input id="text" type="text" placeholder="Type a message…  (Shift+Enter for newline)" />
+        <button id="send" type="submit">Send ↵</button>
+      </form>
+    </div>
+  </main>
+
+  <script type="module">
+    // Firebase config (yours)
+    const firebaseConfig = {
+      apiKey: "AIzaSyDyO8Um7UzvOOm0ki7WvGuwiqbNAyS8ro8",
+      authDomain: "calculator-l.firebaseapp.com",
+      projectId: "calculator-l",
+      storageBucket: "calculator-l.firebasestorage.app",
+      messagingSenderId: "55334370820",
+      appId: "1:55334370820:web:5f38db1aeffe33d44a3f51",
+      measurementId: "G-FGK3V66H34"
+    };
+
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import {
+      getFirestore, collection, addDoc, query, orderBy, limit,
+      onSnapshot, serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    const $ = id => document.getElementById(id);
+    const roomInput = $("room"), nameInput = $("name"),
+          msgsDiv = $("msgs"), textBox = $("text"), form = $("form"),
+          linkSpan = $("link"), shareBtn = $("share");
+
+    const url = new URL(location.href);
+    roomInput.value = url.searchParams.get("room") || localStorage.qc_room || "public";
+    nameInput.value = localStorage.qc_name || "";
+    function room(){ return roomInput.value.trim() || "public"; }
+    function nick(){ return (nameInput.value.trim() || "anon").slice(0,24); }
+
+    function setShareLink(){
+      const base = location.origin + location.pathname;
+      const link = `${base}?room=${encodeURIComponent(room())}`;
+      linkSpan.textContent = link;
+    }
+    setShareLink();
+
+    nameInput.addEventListener("change", ()=> localStorage.qc_name = nick());
+    roomInput.addEventListener("change", ()=> {
+      localStorage.qc_room = room(); setShareLink(); subscribe();
+    });
+
+    shareBtn.addEventListener("click", async ()=>{
+      try{ await navigator.clipboard.writeText(linkSpan.textContent);
+           shareBtn.textContent="Copied!"; setTimeout(()=>shareBtn.textContent="Copy Invite",1200);
+      }catch{ alert("Copy failed — long-press the link to select & copy."); }
+    });
+
+    let stop = null;
+    function subscribe(){
+      if (stop){ stop(); stop=null; }
+      msgsDiv.innerHTML = "";
+      const q = query(collection(db,"rooms", room(), "msgs"), orderBy("ts","asc"), limit(500));
+      stop = onSnapshot(q, snap=>{
+        msgsDiv.innerHTML = "";
+        snap.forEach(doc => render(doc.data()));
+        msgsDiv.scrollTop = msgsDiv.scrollHeight;
+      });
+    }
+
+    signInAnonymously(auth).catch(console.error);
+    onAuthStateChanged(auth, u => { if(u) subscribe(); });
+
+    form.addEventListener("submit", async e=>{
+      e.preventDefault();
+      const text = textBox.value.replace(/\s+$/,"");
+      if(!text) return;
+      await addDoc(collection(db,"rooms", room(), "msgs"), { t:text.slice(0,2000), n:nick(), ts:serverTimestamp() });
+      textBox.value = "";
+    });
+
+    textBox.addEventListener("keydown", e=>{
+      if(e.key==="Enter" && !e.shiftKey){ e.preventDefault(); $("send").click(); }
+    });
+
+    function esc(s){ return s.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+    function render(m){
+      const me = m.n === nick();
+      const wrap = document.createElement("div"); wrap.className = "msg" + (me?" me":"");
+      const bubble = document.createElement("div"); bubble.className = "bubble" + (me?" me":"");
+      const msg = esc(m.t||"").replace(/:\)/g,"😊").replace(/:\(/g,"🙁").replace(/<3/g,"❤️").replace(/\n/g,"<br>");
+      bubble.innerHTML = msg;
+      const meta = document.createElement("div"); meta.className = "meta";
+      const time = m.ts?.toDate ? m.ts.toDate() : null;
+      meta.textContent = `${m.n||"anon"} • ${time ? time.toLocaleString() : "sending…"}`;
+      wrap.appendChild(bubble); wrap.appendChild(meta); msgsDiv.appendChild(wrap);
+    }
+  </script>
+</body>
+</html>
