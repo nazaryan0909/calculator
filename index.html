@@ -109,10 +109,9 @@
 </head>
 <body>
   <script src="https://unpkg.com/eruda"></script>
-  <script>
-    eruda.init();
-  </script>
-  <!-- Auth (username + password), wrapped in a form to satisfy password-managers -->
+  <script>eruda.init();</script>
+
+  <!-- Auth (username + password) -->
   <div id="authModal" style="display:none">
     <div id="authCard">
       <h3>Sign in</h3>
@@ -139,10 +138,7 @@
   </header>
 
   <main id="app">
-    <!-- Drawer overlay for mobile -->
     <div id="drawerOverlay"></div>
-
-    <!-- Friends drawer -->
     <aside id="drawer">
       <div id="left">
         <div id="friendsHead">
@@ -159,7 +155,6 @@
       </div>
     </aside>
 
-    <!-- Chat column -->
     <section id="card">
       <div id="top">
         <div id="chatWith">Pick a friend to start chatting</div>
@@ -217,7 +212,6 @@
   function closeDrawerIfMobile(){ if (window.matchMedia("(max-width: 900px)").matches) closeDrawer(); }
   menuBtn?.addEventListener("click", openDrawer);
   drawerOverlay?.addEventListener("click", closeDrawer);
-
   function setChatTitle(name, uname){ chatTitle.textContent = name ? `— ${name} ${uname||""}` : ""; }
 
   // ---- Theme ----
@@ -245,6 +239,7 @@
   let typingTimeout = null;
   const EMOJIS = ["😀","😂","❤️","👍","🔥","😮"];
 
+  // === Helper: stable chat id ===
   function dmId(a,b){ return [a,b].sort().join("_"); }
 
   // ---- Auth modal helpers ----
@@ -361,9 +356,7 @@
     await deleteDoc(doc(db,"friend_reqs", me.uid, "inbox", fromUid));
     await loadFriends();
   }
-  async function declineRequest(fromUid){
-    await deleteDoc(doc(db,"friend_reqs", me.uid, "inbox", fromUid));
-  }
+  async function declineRequest(fromUid){ await deleteDoc(doc(db,"friend_reqs", me.uid, "inbox", fromUid)); }
   async function removeFriend(fuid){
     if(!confirm("Remove this friend?")) return;
     await deleteDoc(doc(db,"friends",me.uid,"list",fuid));
@@ -377,35 +370,64 @@
     await removeFriend(fuid).catch(()=>{});
   }
 
-  // ---- DMs + Typing + Search + Reactions + Seen ----
-  function esc(s){ return s.replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+  // ========== FIX STARTS HERE: ensure chat before reading/sending ==========
+  function requireAuth(){
+    const u = auth.currentUser;
+    if(!u) throw new Error("Not signed in");
+    return u.uid;
+  }
 
-  async function ensureChat(a,b){
-    const cid=dmId(a,b);
-    const cref=doc(db,"chats",cid);
-    const cdoc=await getDoc(cref);
-    if(!cdoc.exists()){
-      const au=await getDoc(doc(db,"users",a)); const bu=await getDoc(doc(db,"users",b));
-      await setDoc(cref,{ members:[a,b], createdAt:serverTimestamp(), memberNames:{[a]:au.data()?.displayName||"me",[b]:bu.data()?.displayName||"friend"} });
+  async function ensureChatAndPerms(friendUid){
+    const myUid = requireAuth();
+    const cid   = dmId(myUid, friendUid);
+    const cref  = doc(db, "chats", cid);
+    const snap  = await getDoc(cref);
+
+    if (!snap.exists()) {
+      await setDoc(cref, {
+        members: [myUid, friendUid],
+        createdAt: serverTimestamp(),
+        memberNames: { [myUid]: me.displayName || me.username || "me", [friendUid]: activeFriendName || "friend" }
+      });
+      console.log("Chat created:", cid);
+    } else {
+      const data = snap.data() || {};
+      const mems = Array.isArray(data.members) ? data.members : [];
+      const must = [myUid, friendUid].sort().join(",");
+      const have = mems.slice().sort().join(",");
+      if (must !== have) {
+        await setDoc(cref, { ...data, members: [myUid, friendUid] }, { merge: true });
+        console.log("Chat members fixed:", cid);
+      }
     }
     return cid;
   }
 
   async function openDM(friendUid, friendName, friendUname){
-    activeFriend = friendUid;
-    activeFriendName = friendName || "";
-    activeFriendUname = friendUname || "";
-    activeChatId = await ensureChat(me.uid, friendUid);
-    chatWith.textContent = `Chat with ${friendName||""} ${friendUname||""}`;
-    setChatTitle(friendName, friendUname);
-    subscribeMessages();
-    subscribeTypingOfOther();
-    closeDrawerIfMobile();
+    try{
+      activeFriend = friendUid;
+      activeFriendName  = friendName || "";
+      activeFriendUname = friendUname || "";
+      activeChatId = await ensureChatAndPerms(friendUid);
+
+      chatWith.textContent = `Chat with ${friendName||""} ${friendUname||""}`;
+      setChatTitle(friendName, friendUname);
+      await subscribeMessages(true);      // retry once if permission error
+      subscribeTypingOfOther();
+      closeDrawerIfMobile();
+    }catch(err){
+      console.error("openDM failed:", err);
+      alert("Couldn’t open chat. Check Firestore rules are published and you’re signed in.");
+    }
   }
 
-  function subscribeMessages(){
-    if(!activeChatId){ msgsDiv.innerHTML=`<div class="small" style="padding:10px">Pick a friend.</div>`; return; }
+  async function subscribeMessages(retryOnce=false){
+    if(!activeChatId){
+      msgsDiv.innerHTML=`<div class="small" style="padding:10px">Pick a friend.</div>`;
+      return;
+    }
     if(stopMsgs){ stopMsgs(); stopMsgs=null; }
+
     const qref=query(collection(db,"chats",activeChatId,"msgs"),orderBy("ts","asc"));
     stopMsgs = onSnapshot(qref, snap=>{
       msgsDiv.innerHTML="";
@@ -419,8 +441,18 @@
       });
       msgsDiv.scrollTop = msgsDiv.scrollHeight;
       applySearchFilter();
+    }, async (err)=>{
+      console.warn("Subscribe error:", err);
+      if (retryOnce && err.code === "permission-denied") {
+        // Ensure chat again then retry once
+        try { await ensureChatAndPerms(activeFriend); await subscribeMessages(false); }
+        catch (e) { console.error("Retry failed:", e); alert("Can’t open messages (permissions)."); }
+      } else {
+        alert("Can’t read messages (permissions).");
+      }
     });
   }
+  // ========== FIX ENDS HERE ==========
 
   // Typing: my status
   textBox.addEventListener("input", ()=>{
@@ -450,16 +482,23 @@
     });
   });
 
-  // Send message
+  // Send message (ensure chat first)
   form.addEventListener("submit", async (e)=>{
     e.preventDefault();
-    if(!activeChatId){ alert("Pick a friend on the left first."); return; }
-    const t=textBox.value.replace(/\s+$/,""); if(!t) return;
-    await addDoc(collection(db,"chats",activeChatId,"msgs"),{
-      t:t.slice(0,2000), n: me.displayName||me.username||"me", uid:me.uid, ts:serverTimestamp()
-    });
-    textBox.value="";
-    setDoc(doc(db,"chats",activeChatId,"status",me.uid),{ typing:false, ts:serverTimestamp() },{merge:true});
+    try{
+      if(!activeFriend){ alert("Pick a friend on the left first."); return; }
+      const t=textBox.value.replace(/\s+$/,""); if(!t) return;
+
+      const cid = await ensureChatAndPerms(activeFriend);
+      await addDoc(collection(db,"chats",cid,"msgs"),{
+        t:t.slice(0,2000), n: me.displayName||me.username||"me", uid:me.uid, ts:serverTimestamp()
+      });
+      textBox.value="";
+      setDoc(doc(db,"chats",cid,"status",me.uid),{ typing:false, ts:serverTimestamp() },{merge:true});
+    }catch(err){
+      console.error("send failed:", err);
+      alert("Send failed (permissions).");
+    }
   });
 
   // Reactions toggle (per user per message)
