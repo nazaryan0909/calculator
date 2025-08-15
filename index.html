@@ -370,89 +370,91 @@
     await removeFriend(fuid).catch(()=>{});
   }
 
-  // ========== FIX STARTS HERE: ensure chat before reading/sending ==========
-  function requireAuth(){
-    const u = auth.currentUser;
-    if(!u) throw new Error("Not signed in");
-    return u.uid;
-  }
+// ========== FIX STARTS HERE: ensure chat before reading/sending ==========
+function requireAuth(){
+  const u = auth.currentUser;
+  if(!u) throw new Error("Not signed in");
+  return u.uid;
+}
 
-  async function ensureChatAndPerms(friendUid){
-    const myUid = requireAuth();
-    const cid   = dmId(myUid, friendUid);
-    const cref  = doc(db, "chats", cid);
-    const snap  = await getDoc(cref);
+// Create the chat WITHOUT reading first.
+// If the chat already exists, this setDoc will behave like an update and your
+// top-level chat rule may deny it; that’s OK—we catch it and keep going.
+async function ensureChatAndPerms(friendUid){
+  const myUid = requireAuth();
+  const cid   = dmId(myUid, friendUid);
+  const cref  = doc(db, "chats", cid);
 
-    if (!snap.exists()) {
-      await setDoc(cref, {
-        members: [myUid, friendUid],
-        createdAt: serverTimestamp(),
-        memberNames: { [myUid]: me.displayName || me.username || "me", [friendUid]: activeFriendName || "friend" }
-      });
-      console.log("Chat created:", cid);
-    } else {
-      const data = snap.data() || {};
-      const mems = Array.isArray(data.members) ? data.members : [];
-      const must = [myUid, friendUid].sort().join(",");
-      const have = mems.slice().sort().join(",");
-      if (must !== have) {
-        await setDoc(cref, { ...data, members: [myUid, friendUid] }, { merge: true });
-        console.log("Chat members fixed:", cid);
-      }
-    }
-    return cid;
-  }
-
-  async function openDM(friendUid, friendName, friendUname){
-    try{
-      activeFriend = friendUid;
-      activeFriendName  = friendName || "";
-      activeFriendUname = friendUname || "";
-      activeChatId = await ensureChatAndPerms(friendUid);
-
-      chatWith.textContent = `Chat with ${friendName||""} ${friendUname||""}`;
-      setChatTitle(friendName, friendUname);
-      await subscribeMessages(true);      // retry once if permission error
-      subscribeTypingOfOther();
-      closeDrawerIfMobile();
-    }catch(err){
-      console.error("openDM failed:", err);
-      alert("Couldn’t open chat. Check Firestore rules are published and you’re signed in.");
-    }
-  }
-
-  async function subscribeMessages(retryOnce=false){
-    if(!activeChatId){
-      msgsDiv.innerHTML=`<div class="small" style="padding:10px">Pick a friend.</div>`;
-      return;
-    }
-    if(stopMsgs){ stopMsgs(); stopMsgs=null; }
-
-    const qref=query(collection(db,"chats",activeChatId,"msgs"),orderBy("ts","asc"));
-    stopMsgs = onSnapshot(qref, snap=>{
-      msgsDiv.innerHTML="";
-      snap.forEach(d=>{
-        const data=d.data();
-        renderMsg(d.id, data);
-        // Mark messages from friend as seen
-        if(data.uid !== me.uid){
-          updateDoc(doc(db,"chats",activeChatId,"msgs",d.id), { [`seenBy.${me.uid}`]: serverTimestamp() }).catch(()=>{});
-        }
-      });
-      msgsDiv.scrollTop = msgsDiv.scrollHeight;
-      applySearchFilter();
-    }, async (err)=>{
-      console.warn("Subscribe error:", err);
-      if (retryOnce && err.code === "permission-denied") {
-        // Ensure chat again then retry once
-        try { await ensureChatAndPerms(activeFriend); await subscribeMessages(false); }
-        catch (e) { console.error("Retry failed:", e); alert("Can’t open messages (permissions)."); }
-      } else {
-        alert("Can’t read messages (permissions).");
+  try {
+    await setDoc(cref, {
+      members: [myUid, friendUid],
+      createdAt: serverTimestamp(),
+      memberNames: {
+        [myUid]: me.displayName || me.username || "me",
+        [friendUid]: activeFriendName || "friend"
       }
     });
+    console.log("Chat created:", cid);
+  } catch (e) {
+    if (e.code === "permission-denied") {
+      // Probably means the chat already exists and updates aren’t allowed by rules.
+      // That’s fine—we can still read msgs because the chat exists.
+      console.warn("Chat likely exists; proceeding:", cid);
+    } else {
+      throw e;
+    }
   }
-  // ========== FIX ENDS HERE ==========
+  return cid;
+}
+
+async function openDM(friendUid, friendName, friendUname){
+  try{
+    activeFriend       = friendUid;
+    activeFriendName   = friendName || "";
+    activeFriendUname  = friendUname || "";
+    activeChatId       = await ensureChatAndPerms(friendUid);
+
+    chatWith.textContent = `Chat with ${friendName||""} ${friendUname||""}`;
+    setChatTitle(friendName, friendUname);
+    await subscribeMessages(true);   // retry once if permission error
+    subscribeTypingOfOther();
+    closeDrawerIfMobile();
+  }catch(err){
+    console.error("openDM failed:", err);
+    alert("Couldn’t open chat. Check Firestore rules are published and you’re signed in.");
+  }
+}
+
+async function subscribeMessages(retryOnce=false){
+  if(!activeChatId){
+    msgsDiv.innerHTML=`<div class="small" style="padding:10px">Pick a friend.</div>`;
+    return;
+  }
+  if(stopMsgs){ stopMsgs(); stopMsgs=null; }
+
+  const qref=query(collection(db,"chats",activeChatId,"msgs"),orderBy("ts","asc"));
+  stopMsgs = onSnapshot(qref, snap=>{
+    msgsDiv.innerHTML="";
+    snap.forEach(d=>{
+      const data=d.data();
+      renderMsg(d.id, data);
+      if(data.uid !== me.uid){
+        updateDoc(doc(db,"chats",activeChatId,"msgs",d.id), { [`seenBy.${me.uid}`]: serverTimestamp() }).catch(()=>{});
+      }
+    });
+    msgsDiv.scrollTop = msgsDiv.scrollHeight;
+    applySearchFilter();
+  }, async (err)=>{
+    console.warn("Subscribe error:", err);
+    if (retryOnce && err.code === "permission-denied") {
+      try { await ensureChatAndPerms(activeFriend); await subscribeMessages(false); }
+      catch (e) { console.error("Retry failed:", e); alert("Can’t open messages (permissions)."); }
+    } else {
+      alert("Can’t read messages (permissions).");
+    }
+  });
+}
+// ========== FIX ENDS HERE ==========
 
   // Typing: my status
   textBox.addEventListener("input", ()=>{
