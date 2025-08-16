@@ -120,6 +120,28 @@ form {
 .msg .overlay {
   display: none !important;  /* kill invisible blocker */
 }
+/* --- SAFETY LAYERS (iOS tap fix) --- */
+#card { position: relative; }
+#msgs { position: relative; z-index: 1; }
+
+#typing,
+#emojiBar,
+form#form {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  background: var(--panel);
+}
+
+.msg,
+.msg * {
+  pointer-events: auto !important;
+}
+
+html, body, #app, #card, #msgs, form, input, button {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation !important;
+}
 </style>
 </head>
 <body>
@@ -220,6 +242,12 @@ form {
   const chatWith=$("chatWith"), msgsDiv=$("msgs"), form=$("form"), textBox=$("text"), typingDiv=$("typing"), searchBox=$("search");
   const emojiBar=$("emojiBar");
   const menuBtn = $("menuBtn"), drawer = $("drawer"), drawerOverlay = $("drawerOverlay"), chatTitle = $("chatTitle");
+  // iOS tap shield
+function setMsgsShield(on){
+  msgsDiv.style.pointerEvents = on ? "none" : "auto";
+}
+textBox.addEventListener("focus", ()=> setMsgsShield(true));
+textBox.addEventListener("blur",  ()=> setMsgsShield(false));
 
   // ===== Drawer open/close (mobile) =====
   function openDrawer(){ drawer.classList.add("open"); drawerOverlay.classList.add("show"); }
@@ -580,8 +608,10 @@ function esc(s) {
   function renderMsg(id, m){
     const mine = m.uid === me.uid;
     const wrap=document.createElement("div");
-wrap.className = "msg" + (mine ? " me" : "");
-wrap.style.pointerEvents = "auto"; 
+wrap.className="msg"+(mine?" me":"");
+wrap.style.pointerEvents="auto";
+wrap.style.position="relative";
+wrap.style.zIndex="1";
     const col=document.createElement("div"); col.className="col";
     const bubble=document.createElement("div"); bubble.className="bubble"+(mine?" me":"");
     bubble.innerHTML=esc(m.t||"").replace(/:\)/g,"😊").replace(/:\(/g,"🙁").replace(/<3/g,"❤️").replace(/\n/g,"<br>");
