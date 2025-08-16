@@ -188,9 +188,9 @@
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, updateProfile } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
   import {
-    getFirestore, doc, getDoc, setDoc, collection, addDoc, onSnapshot,
-    query, orderBy, serverTimestamp, deleteDoc, getDocs, updateDoc
-  } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  getFirestore, doc, getDoc, setDoc, collection, addDoc, onSnapshot,
+  query, orderBy, serverTimestamp, deleteDoc, getDocs, updateDoc, writeBatch
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
   // ---- Init ----
   const app = initializeApp(firebaseConfig);
@@ -384,9 +384,18 @@ $("dec_"+fromUid).onclick = async (ev)=>{
   });
 
   async function acceptRequest(fromUid){
-  await setDoc(doc(db,"friends",me.uid,"list",fromUid),{ since:serverTimestamp() });
-  await setDoc(doc(db,"friends",fromUid,"list",me.uid),{ since:serverTimestamp() });
-  await deleteDoc(doc(db,"friend_reqs", me.uid, "inbox", fromUid));
+  const batch = writeBatch(db);
+
+  const mySide    = doc(db,"friends",me.uid,"list",fromUid);
+  const otherSide = doc(db,"friends",fromUid,"list",me.uid);
+  const reqDoc    = doc(db,"friend_reqs", me.uid, "inbox", fromUid);
+
+  batch.set(mySide,    { since: serverTimestamp() });
+  batch.set(otherSide, { since: serverTimestamp() });
+  batch.delete(reqDoc);
+
+  await batch.commit();
+  await loadFriends();
 }
   async function declineRequest(fromUid){ await deleteDoc(doc(db,"friend_reqs", me.uid, "inbox", fromUid)); }
   async function removeFriend(fuid){
