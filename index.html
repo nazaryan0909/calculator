@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
 <title>QuickChat – Telegram-style</title>
 <style>
   :root{
@@ -105,14 +105,20 @@
     #menuBtn{display:none}
     #drawerOverlay{display:none!important}
   }
-  .msg .reactions, 
-.msg .overlay {
-  pointer-events: none;
+/* --- iPhone double-tap fix (final) --- */
+.msg,
+.msg .reactions,
+#msgs,
+#card,
+button,
+input,
+form {
+  pointer-events: auto !important;
+  touch-action: manipulation !important; /* disable Safari double-tap zoom */
 }
 
-/* Force all messages to accept taps normally */
-.msg {
-  pointer-events: auto !important;
+.msg .overlay {
+  display: none !important;  /* kill invisible blocker */
 }
 </style>
 </head>
