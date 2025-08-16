@@ -105,6 +105,10 @@
     #menuBtn{display:none}
     #drawerOverlay{display:none!important}
   }
+  .msg .reactions, 
+.msg .overlay {
+  pointer-events: none;
+}
 </style>
 </head>
 <body>
@@ -564,7 +568,9 @@ function esc(s) {
   // Render message + reactions + receipts + delete
   function renderMsg(id, m){
     const mine = m.uid === me.uid;
-    const wrap=document.createElement("div"); wrap.className="msg"+(mine?" me":"");
+    const wrap=document.createElement("div");
+wrap.className = "msg" + (mine ? " me" : "");
+wrap.style.pointerEvents = "auto"; 
     const col=document.createElement("div"); col.className="col";
     const bubble=document.createElement("div"); bubble.className="bubble"+(mine?" me":"");
     bubble.innerHTML=esc(m.t||"").replace(/:\)/g,"😊").replace(/:\(/g,"🙁").replace(/<3/g,"❤️").replace(/\n/g,"<br>");
